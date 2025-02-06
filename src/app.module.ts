@@ -1,21 +1,20 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ProductosModule } from './productos/productos.module';
-import { CarroComprasModule } from './carro-compras/carro-compras.module';
-import { PedidosModule } from './pedidos/pedidos.module';
-import { UsuariosModule } from './usuarios/usuarios.module';
-import { EquipoModule } from './commons/modelse3/equipo/equipo.module';
 import { AuthModule } from './auth/auth.module';
+import { CarroComprasModule } from './carro-compras/carro-compras.module';
 import { GlobalMiddleware } from './commons/middleware/global.middleware';
-import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ServeStaticModule } from '@nestjs/serve-static';
-
+import { EquipoModule } from './commons/modelse3/equipo/equipo.module';
+import { PedidosModule } from './pedidos/pedidos.module';
+import { ProductosModule } from './productos/productos.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 import { IaconsultasModule } from './iaconsultas/iaconsultas.module';
-import { ReviewsModule } from './reviews/reviews.module';
 import { PromocionesModule } from './promociones/promociones.module';
 import { PromocionesProductosModule } from './promociones/promociones.productos.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [

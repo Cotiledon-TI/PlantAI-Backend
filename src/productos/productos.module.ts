@@ -29,6 +29,7 @@ import { ToleranciaTemperatura } from './entities/plantas/tolerancia_temperatura
 import { ImageService } from './service/imagen.service';
 import { CatalogoController } from './controller/catalogo.controller';
 import { CatalogoService } from './service/catalogo.service';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
@@ -53,12 +54,13 @@ import { CatalogoService } from './service/catalogo.service';
       TipoAccesorio,
       CarroProducto,
       ImagenProducto,
-      ProductoPedido
+      ProductoPedido,
     ]),
-    PromocionesProductosModule
+    PromocionesProductosModule,
+    CacheModule.register(),
   ],
   controllers: [ProductosController, CatalogoController],
   providers: [ProductosService, ImageService, JwtService, CatalogoService],
   exports: [ProductosService],
 })
-export class ProductosModule { }
+export class ProductosModule {}
