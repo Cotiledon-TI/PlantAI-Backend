@@ -15,6 +15,7 @@ import { IaconsultasModule } from './iaconsultas/iaconsultas.module';
 import { PromocionesModule } from './promociones/promociones.module';
 import { PromocionesProductosModule } from './promociones/promociones.productos.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
@@ -52,6 +53,9 @@ import { ReviewsModule } from './reviews/reviews.module';
     ReviewsModule,
     PromocionesModule,
     PromocionesProductosModule,
+    CacheModule.register({
+      isGlobal: true,
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],
