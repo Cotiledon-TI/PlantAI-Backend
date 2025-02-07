@@ -1,5 +1,8 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cache } from 'cache-manager';
+import { createHash } from 'crypto';
 import { PromocionesProductosService } from 'src/promociones/service/promociones-productos.service';
 import { Repository } from 'typeorm';
 import {
@@ -12,18 +15,26 @@ import { ProductoMapper } from '../mapper/entity-to-dto-producto';
 
 @Injectable()
 export class CatalogoService {
+  private readonly cacheTTL: number = 1000 * 60 * 10;
   constructor(
     @InjectRepository(Producto)
     private readonly productoRepository: Repository<Producto>,
     @Inject(PromocionesProductosService)
-    private readonly promocionesProductosService: PromocionesProductosService
-  ) { }
+    private readonly promocionesProductosService: PromocionesProductosService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   /**Retorna todos los productos */
   async findAll(
     filtrosCatalogoDto: FiltrosCatalogoDto,
   ): Promise<GetProductosPaginadosDto> {
+    // Revisar: Debería poder continuar aunque la búsqueda en caché tire un error
     try {
+      const catalogoCache: GetProductosPaginadosDto =
+        await this.findCatalogCache(filtrosCatalogoDto);
+      if (catalogoCache) {
+        return catalogoCache;
+      }
       const {
         page,
         pageSize,
@@ -111,12 +122,25 @@ export class CatalogoService {
       // Asignar promociones a cada producto
       await Promise.all(
         result.map(async (producto: Producto) => {
-          producto.promociones = await this.promocionesProductosService.findActivesByProductId(producto.id)
-          producto.promociones = this.promocionesProductosService.filtrarPromocionesDestacadas(producto.promociones, producto.precio)
-        })
-      )
-
-      return { data: ProductoMapper.entitiesToDtos(result), totalItems };
+          producto.promociones =
+            await this.promocionesProductosService.findActivesByProductId(
+              producto.id,
+            );
+          producto.promociones =
+            this.promocionesProductosService.filtrarPromocionesDestacadas(
+              producto.promociones,
+              producto.precio,
+            );
+        }),
+      );
+      const catalogoDto: GetProductosPaginadosDto = {
+        data: ProductoMapper.entitiesToDtos(result),
+        totalItems,
+      };
+      const catalogHash: string = this.generateCatalogHash(filtrosCatalogoDto);
+      // Guardar el catálogo filtrado en caché
+      await this.cacheManager.set(catalogHash, catalogoDto, this.cacheTTL);
+      return catalogoDto;
     } catch (error) {
       throw new BadRequestException(error.message);
     }
@@ -157,13 +181,80 @@ export class CatalogoService {
       // Asignar promociones a cada producto
       await Promise.all(
         result.map(async (producto: Producto) => {
-          producto.promociones = await this.promocionesProductosService.findActivesByProductId(producto.id)
-        })
-      )
+          producto.promociones =
+            await this.promocionesProductosService.findActivesByProductId(
+              producto.id,
+            );
+        }),
+      );
 
       return { data: ProductoMapper.entitiesToDtos(result), totalItems };
     } catch (error) {
       throw new BadRequestException(error.message);
     }
+  }
+
+  /**Retorna el registro de catálogo en cache asociado a los filtros aplicados */
+  private async findCatalogCache(
+    filtrosCatalogoDto: FiltrosCatalogoDto,
+  ): Promise<GetProductosPaginadosDto> {
+    try {
+      const catalogHash: string = this.generateCatalogHash(filtrosCatalogoDto);
+      const catalogoCache: GetProductosPaginadosDto =
+        await this.cacheManager.get(catalogHash);
+      if (catalogoCache) {
+        const { maxPrecio, minPrecio } = filtrosCatalogoDto;
+        if (maxPrecio) {
+          catalogoCache.data = catalogoCache.data.filter(
+            (producto) => producto.precio <= maxPrecio,
+          );
+        }
+        if (minPrecio) {
+          catalogoCache.data = catalogoCache.data.filter(
+            (producto) => producto.precio >= minPrecio,
+          );
+        }
+        return catalogoCache;
+      }
+      return null;
+    } catch (error) {
+      throw new BadRequestException('Error al obtener datos del catálogo');
+    }
+  }
+
+  /**Genera un hash para un conjunto de filtros específicos */
+  private generateCatalogHash(filtrosCatalogoDto: FiltrosCatalogoDto): string {
+    // No se incluye el filtro por precios
+    const {
+      page,
+      pageSize,
+      idEntorno,
+      petFriendly,
+      idIluminacion,
+      idTipoRiego,
+      idToleranciaTemperatura,
+      ordenarPor,
+      puntuacion,
+      orden,
+      sizePlant,
+    } = filtrosCatalogoDto;
+
+    return createHash('sha256')
+      .update(
+        JSON.stringify({
+          page,
+          pageSize,
+          idEntorno,
+          petFriendly,
+          idIluminacion,
+          idTipoRiego,
+          idToleranciaTemperatura,
+          ordenarPor,
+          puntuacion,
+          orden,
+          sizePlant,
+        }),
+      )
+      .digest('hex');
   }
 }
