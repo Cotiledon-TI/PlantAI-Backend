@@ -234,3 +234,5 @@ Versión 2.0.0 <- Post entrega final del bootcamp
         El caché de productos por id dura 1 día.
           *Todo el caché se resetea al crear, modificar o eliminar productos.
 
+        ++ Agregado archivo SQL V0.0.17 y V0.0.18
+
