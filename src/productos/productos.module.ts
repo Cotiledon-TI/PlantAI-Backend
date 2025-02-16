@@ -15,6 +15,7 @@ import { ColorProducto } from 'src/commons/entities/color.entity';
 import { Marca } from 'src/commons/entities/marca.entity';
 import { ProductoPedido } from 'src/pedidos/entities/productos_pedido.entity';
 import { PromocionesProductosModule } from 'src/promociones/promociones.productos.module';
+import { CatalogoController } from './controller/catalogo.controller';
 import { TipoAccesorio } from './entities/accesorios/tipo_accesorio.entity';
 import { ImagenProducto } from './entities/imagenes.entity';
 import { TipoInsumo } from './entities/insumos/tipo_insumo.entity';
@@ -26,9 +27,8 @@ import { Iluminacion } from './entities/plantas/iluminacion.entity';
 import { Tamano } from './entities/plantas/tamano.entity';
 import { TipoRiego } from './entities/plantas/tipo_riego.entity';
 import { ToleranciaTemperatura } from './entities/plantas/tolerancia_temperatura.entity';
-import { ImageService } from './service/imagen.service';
-import { CatalogoController } from './controller/catalogo.controller';
 import { CatalogoService } from './service/catalogo.service';
+import { ImageService } from './service/imagen.service';
 
 @Module({
   imports: [
@@ -53,12 +53,12 @@ import { CatalogoService } from './service/catalogo.service';
       TipoAccesorio,
       CarroProducto,
       ImagenProducto,
-      ProductoPedido
+      ProductoPedido,
     ]),
-    PromocionesProductosModule
+    PromocionesProductosModule,
   ],
   controllers: [ProductosController, CatalogoController],
   providers: [ProductosService, ImageService, JwtService, CatalogoService],
   exports: [ProductosService],
 })
-export class ProductosModule { }
+export class ProductosModule {}

@@ -209,25 +209,28 @@ Versión 1.12.3
 
 
 =========================================================================================================================
-** Próxima Versión
+Versión 2.0.0 <- Post entrega final del bootcamp
 
     Cambios:
-        - Productos:
-            Los endpoints de DELETE ahora solo retornan un código 204, sin body.
-            Soft Delete para Productos
-                Los productos solo se eliminan si nunca han sido comprado. Si se han comprado se les da una fecha de eliminación, para no rompper los registros de compras.
+      - Productos:
+        Los endpoints de DELETE ahora solo retornan un código 204, sin body.
+        Soft Delete para Productos
+          Los productos solo se eliminan si nunca han sido comprado. Si se han comprado se les da una fecha de eliminación, para no rompper los registros de compras.
 
     Agregados:
-        - Módulo de Promociones
-            CRUD
-            Obtener productos seleccionados de una promoción
-            Validar cupón con código
-            Servicio: Filtro de promociones por producto y cálculo de precio final
+      - Módulo de Promociones
+        CRUD
+        Obtener productos seleccionados de una promoción
+        Validar cupón con código
+        Servicio: Filtro de promociones por producto y cálculo de precio final
 
-        - Productos:
-            Propiedad "promociones: GetPromocionesDto[]"
-                Arreglo de promociones activas de cada producto.
+      - Productos:
+        Propiedad "promociones: GetPromocionesDto[]"
+          Arreglo de promociones activas de cada producto.
 
-    *Falta:
-        Enums
+    Optimizado:
+      - Caché para Catálogo y productos por id.
+        El caché de catálogo dura 10 minutos. Se crea un registro para cada mezcla de filtros, excepto de rango de precios.
+        El caché de productos por id dura 1 día.
+          *Todo el caché se resetea al crear, modificar o eliminar productos.
 

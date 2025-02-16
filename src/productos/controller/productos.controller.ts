@@ -9,7 +9,7 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards
+  UseGuards,
 } from '@nestjs/common';
 
 import {
@@ -19,7 +19,7 @@ import {
   ApiParam,
   ApiQuery,
   ApiResponse,
-  ApiTags
+  ApiTags,
 } from '@nestjs/swagger';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard/jwt-auth.guard';
@@ -41,7 +41,7 @@ import { ProductosService } from '../service/productos.service';
 @ApiTags('Gestión de productos')
 @Controller('productos')
 export class ProductosController {
-  constructor(private readonly productosService: ProductosService) { }
+  constructor(private readonly productosService: ProductosService) {}
 
   // Obtener todos, sin paginación
   @ApiOperation({
@@ -49,7 +49,7 @@ export class ProductosController {
       'Retorna todos los productos registrados. PREFERIR GET productos/admin para paginación.',
     description:
       'Ahora está habilitado el GET productos/admin, que retorna todos los productos y permite paginar.',
-    deprecated: true
+    deprecated: true,
   })
   @ApiResponse({
     status: 200,
@@ -173,9 +173,10 @@ export class ProductosController {
   // Eliminar un producto
   @ApiOperation({
     summary: 'Elimina un producto según su id',
-    description: 'Ejecuta dos métodos de eliminación: \n'
-      + '\n - Si el producto nunca ha sido comprado, se elimina completamente.\n'
-      + '\n - Si el producto ya ha sido comprado, se ejecuta un Soft Delete (se invisibiliza toda su información, pero se conservan las asociaciones con el historial de pedidos).'
+    description:
+      'Ejecuta dos métodos de eliminación: \n' +
+      '\n - Si el producto nunca ha sido comprado, se elimina completamente.\n' +
+      '\n - Si el producto ya ha sido comprado, se ejecuta un Soft Delete (se invisibiliza toda su información, pero se conservan las asociaciones con el historial de pedidos).',
   })
   @ApiResponse({
     status: 204,
@@ -249,7 +250,10 @@ export class ProductosController {
     summary:
       'Eliminar la imagen de un producto según el índice de la imagen en el arreglo.',
   })
-  @ApiResponse({ status: 204, description: 'Imagen eliminada con éxito. Respuesta sin contenido' })
+  @ApiResponse({
+    status: 204,
+    description: 'Imagen eliminada con éxito. Respuesta sin contenido',
+  })
   @ApiResponse({ status: 400, description: 'Error al eliminar imagen' })
   @ApiBearerAuth('access-token')
   @Delete('deleteProductImage/:idProducto/:indiceImagen')

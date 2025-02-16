@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  NotFoundException
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CarroProducto } from 'src/carro-compras/entities/carro_producto.entity';
@@ -24,9 +24,15 @@ import { Producto } from '../entities/producto.entity';
 import { ProductoMapper } from '../mapper/entity-to-dto-producto';
 import { PRODUCTO_RELATIONS } from '../shared/constants/producto-relaciones';
 import { ImageService } from './imagen.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class ProductosService {
+  /**Prefijo para identificar los productos guardados en caché. Se guardan con "prefijo + id". Ej: "producto-1" */
+  private readonly cacheProductPrefix: string = 'producto-';
+  /**"Time To Live" - Tiempo de permanencia de cada elemento en la memoria caché, en milisegundos */
+  private readonly cacheTTL: number = 1000 * 60 * 60 * 24;
   constructor(
     @InjectRepository(Producto)
     readonly productoRepository: Repository<Producto>,
@@ -37,7 +43,8 @@ export class ProductosService {
     @Inject(PromocionesProductosService)
     private readonly promocionesProductosService: PromocionesProductosService,
     private readonly imageService: ImageService,
-  ) { }
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   /**
    * BÚSQUEDA
@@ -45,14 +52,33 @@ export class ProductosService {
 
   /**Retorna el producto cuyo id coincida con el ingresado.*/
   async getById(id: number): Promise<GetProductoDto> {
-    const producto = await this.getEntityById(id, PRODUCTO_RELATIONS)
-    if (!producto) {
-      throw new NotFoundException('No existe un producto con ese id.');
+    const productoCache: GetProductoDto = await this.cacheManager.get(
+      `${this.cacheProductPrefix}${id}`,
+    );
+    if (!productoCache) {
+      const producto = await this.getEntityById(id, PRODUCTO_RELATIONS);
+      if (!producto) {
+        throw new NotFoundException('No existe un producto con ese id.');
+      }
+      // Obtener promociones destacadas
+      producto.promociones =
+        await this.promocionesProductosService.findActivesByProductId(
+          producto.id,
+        );
+      producto.promociones =
+        this.promocionesProductosService.filtrarPromocionesDestacadas(
+          producto.promociones,
+          producto.precio,
+        );
+      const productoDto: GetProductoDto = ProductoMapper.entityToDto(producto);
+      await this.cacheManager.set(
+        `${this.cacheProductPrefix}${id}`,
+        productoDto,
+        this.cacheTTL,
+      );
+      return ProductoMapper.entityToDto(producto);
     }
-    // Obtener promociones destacadas
-    producto.promociones = await this.promocionesProductosService.findActivesByProductId(producto.id)
-    producto.promociones = this.promocionesProductosService.filtrarPromocionesDestacadas(producto.promociones, producto.precio)
-    return ProductoMapper.entityToDto(producto);
+    return productoCache;
   }
 
   /**Retorna todos los productos registrados, con paginación. Para endpoints de Gestión de Productos (Admins) */
@@ -64,7 +90,7 @@ export class ProductosService {
         page: paginationDto.page ? +paginationDto.page : 1,
         pageSize: paginationDto.pageSize ? +paginationDto.pageSize : 10,
       };
-      let [result, totalItems] = await this.productoRepository.findAndCount({
+      const [result, totalItems] = await this.productoRepository.findAndCount({
         take: pagination.pageSize,
         skip: (pagination.page - 1) * pagination.pageSize,
         relations: PRODUCTO_RELATIONS,
@@ -72,11 +98,12 @@ export class ProductosService {
 
       return {
         totalItems,
-        data: ProductoMapper.entitiesToDtos(result)
+        data: ProductoMapper.entitiesToDtos(result),
       };
-    }
-    catch (error) {
-      throw new BadRequestException('Error al obtener productos', { description: error.message })
+    } catch (error) {
+      throw new BadRequestException('Error al obtener productos', {
+        description: error.message,
+      });
     }
   }
 
@@ -86,25 +113,29 @@ export class ProductosService {
       const productos = await this.productoRepository.find({
         relations: PRODUCTO_RELATIONS,
       });
-      return ProductoMapper.entitiesToDtos(productos)
-    }
-    catch (error) {
-
-      throw new BadRequestException('Error al obtener productos', { description: error.message })
+      return ProductoMapper.entitiesToDtos(productos);
+    } catch (error) {
+      throw new BadRequestException('Error al obtener productos', {
+        description: error.message,
+      });
     }
   }
 
   /**Retorna una entidad Producto por id. Método auxiliar. */
-  private async getEntityById(idProducto: number, relaciones: string[]): Promise<Producto> {
+  private async getEntityById(
+    idProducto: number,
+    relaciones: string[],
+  ): Promise<Producto> {
     try {
       const producto = await this.productoRepository.findOne({
         where: { id: idProducto },
         relations: relaciones,
       });
       return producto;
-    }
-    catch (error) {
-      throw new BadRequestException('Error al obtener producto', { description: error.message })
+    } catch (error) {
+      throw new BadRequestException('Error al obtener producto', {
+        description: error.message,
+      });
     }
   }
 
@@ -158,18 +189,24 @@ export class ProductosService {
           }
           if (createProductoDto.imagen) {
             const rutaImagen: string = await this.imageService.addImage(
-              createProductoDto.imagen
+              createProductoDto.imagen,
             );
-            const nuevaImagen: ImagenProducto = new ImagenProducto(productoId, rutaImagen)
-            const imagenGuardada: ImagenProducto = await transactionalEM.save(nuevaImagen)
-            productoGuardado.imagenes = [imagenGuardada]
+            const nuevaImagen: ImagenProducto = new ImagenProducto(
+              productoId,
+              rutaImagen,
+            );
+            const imagenGuardada: ImagenProducto =
+              await transactionalEM.save(nuevaImagen);
+            productoGuardado.imagenes = [imagenGuardada];
           }
           return productoGuardado;
         },
       );
       return await this.getById(nuevoProducto.id);
     } catch (error) {
-      throw new BadRequestException('Error al crear producto', { description: error.message });
+      throw new BadRequestException('Error al crear producto', {
+        description: error.message,
+      });
     }
   }
 
@@ -225,10 +262,12 @@ export class ProductosService {
           return await transactionalEntityManager.save(producto);
         },
       );
+      await this.cacheManager.del(`${this.cacheProductPrefix}${id}`);
       return await this.getById(updateProducto.id);
-    }
-    catch (error) {
-      throw new BadRequestException('Error al actualizar producto', { description: error.message })
+    } catch (error) {
+      throw new BadRequestException('Error al actualizar producto', {
+        description: error.message,
+      });
     }
   }
 
@@ -239,10 +278,13 @@ export class ProductosService {
   /**Elimina un producto según su id. */
   async deleteOne(idProducto: number): Promise<void> {
     try {
-      const producto = await this.getEntityById(idProducto, PRODUCTO_RELATIONS)
+      const producto = await this.getEntityById(idProducto, PRODUCTO_RELATIONS);
 
       // Revisar si el producto ha sido comprado
-      const productoComprado: boolean = await this.productoPedidoRepository.existsBy({ idProducto: idProducto })
+      const productoComprado: boolean =
+        await this.productoPedidoRepository.existsBy({
+          idProducto: idProducto,
+        });
 
       // Si fue comprado, se eliminan las imagenes y se hace un soft delete del producto
       if (productoComprado) {
@@ -256,14 +298,19 @@ export class ProductosService {
                 );
               }
             }
-            await transactionalEntityManager.softDelete(Producto, { id: producto.id })
-          })
+            await transactionalEntityManager.softDelete(Producto, {
+              id: producto.id,
+            });
+          },
+        );
         if (producto.imagenes) {
           if (producto.imagenes.length > 0) {
-            await Promise.all(producto.imagenes.map(async imagen => {
-              const rutaImage = this.staticToFilesPath(imagen.ruta)
-              await this.imageService.deleteImageFile(rutaImage);
-            }))
+            await Promise.all(
+              producto.imagenes.map(async (imagen) => {
+                const rutaImage = this.staticToFilesPath(imagen.ruta);
+                await this.imageService.deleteImageFile(rutaImage);
+              }),
+            );
           }
         }
       }
@@ -315,17 +362,21 @@ export class ProductosService {
         );
         if (producto.imagenes) {
           if (producto.imagenes.length > 0) {
-            await Promise.all(producto.imagenes.map(async imagen => {
-              const rutaImage = this.staticToFilesPath(imagen.ruta)
-              await this.imageService.deleteImageFile(rutaImage);
-            }))
+            await Promise.all(
+              producto.imagenes.map(async (imagen) => {
+                const rutaImage = this.staticToFilesPath(imagen.ruta);
+                await this.imageService.deleteImageFile(rutaImage);
+              }),
+            );
           }
         }
       }
+      await this.cacheManager.del(`${this.cacheProductPrefix}${idProducto}`);
       return;
-    }
-    catch (error) {
-      throw new BadRequestException('Error al eliminar producto', { description: error.message })
+    } catch (error) {
+      throw new BadRequestException('Error al eliminar producto', {
+        description: error.message,
+      });
     }
   }
 
@@ -342,13 +393,17 @@ export class ProductosService {
       const rutaImagen = await this.imageService.addImage(
         base64Content.base64Content,
       );
-      const nuevaImagen: ImagenProducto = new ImagenProducto(idProducto, rutaImagen)
-      await this.imagenProductoRepository.save(nuevaImagen)
-
+      const nuevaImagen: ImagenProducto = new ImagenProducto(
+        idProducto,
+        rutaImagen,
+      );
+      await this.imagenProductoRepository.save(nuevaImagen);
+      await this.cacheManager.del(`${this.cacheProductPrefix}${idProducto}`);
       return rutaImagen;
-    }
-    catch (error) {
-      throw new BadRequestException('Error al agregar la imagen', { description: error.message })
+    } catch (error) {
+      throw new BadRequestException('Error al agregar la imagen', {
+        description: error.message,
+      });
     }
   }
 
@@ -392,17 +447,21 @@ export class ProductosService {
   // }
 
   /**Elimina una imagen de un producto en Base64. Borra la imagen en la posición de índice del arreglo de imágenes, borra la ruta de DB y el archivo. */
-  async deleteProductImage(idProducto: number, indiceImagen: number): Promise<void> {
+  async deleteProductImage(
+    idProducto: number,
+    indiceImagen: number,
+  ): Promise<void> {
     try {
-      const producto = await this.getEntityById(idProducto, ['imagenes'])
+      const producto = await this.getEntityById(idProducto, ['imagenes']);
 
       if (producto.imagenes.length < indiceImagen + 1 || indiceImagen < 0) {
         throw new BadRequestException('Índice inválido');
       }
-      const imagenEliminada: ImagenProducto = producto.imagenes[indiceImagen]
-      const rutaImage = this.staticToFilesPath(imagenEliminada.ruta)
+      const imagenEliminada: ImagenProducto = producto.imagenes[indiceImagen];
+      const rutaImage = this.staticToFilesPath(imagenEliminada.ruta);
       await this.imageService.deleteImageFile(rutaImage);
-      await this.imagenProductoRepository.remove(imagenEliminada)
+      await this.imagenProductoRepository.remove(imagenEliminada);
+      await this.cacheManager.del(`${this.cacheProductPrefix}${idProducto}`);
     } catch (error) {
       throw new BadRequestException(
         'Error al eliminar la imagen',
@@ -418,7 +477,7 @@ export class ProductosService {
       `${process.env.RUTA_ESTATICOS}`,
       `${process.env.RUTA_FISICA}/`,
     );
-    return rutaImagen
+    return rutaImagen;
   }
 
   /**
