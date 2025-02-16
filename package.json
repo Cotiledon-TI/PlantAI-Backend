@@ -1,6 +1,6 @@
 {
   "name": "PlantAI",
-  "version": "1.12.1",
+  "version": "2.0.0",
   "description": "Proyecto bootcamp 2024 - Backend",
   "author": {
     "name": "Grupo 3",
@@ -22,7 +22,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "db:up": "docker compose up -d database-dev flyway"
+    "db:up": "docker compose up -d database-dev flyway",
+    "image:build": "cd prod && node script-image-build.js",
+    "image:push": "cd prod && node script-image-push.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
